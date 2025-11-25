@@ -2,7 +2,12 @@
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  ListBucketsCommand,
+  HeadBucketCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const app = express();
@@ -49,6 +54,34 @@ app.get("/images/presigned", async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "failed to generate presigned url" });
+  }
+});
+
+app.get("/debug/s3", async (req, res) => {
+  try {
+    // 1) 자격증명 자체가 맞는지: ListBuckets로 테스트
+    const listResult = await s3Client.send(new ListBucketsCommand({}));
+
+    // 2) 내가 쓰려는 버킷에 실제로 접근 가능한지: HeadBucket으로 테스트
+    const headResult = await s3Client.send(
+      new HeadBucketCommand({
+        Bucket: process.env.S3_BUCKET_NAME,
+      })
+    );
+
+    return res.json({
+      ok: true,
+      buckets: listResult.Buckets?.map((b) => b.Name),
+      bucketCheck: "HEAD bucket success",
+    });
+  } catch (err) {
+    console.error("[DEBUG] S3 TEST ERROR:", err);
+    return res.status(500).json({
+      ok: false,
+      name: err.name,
+      message: err.message,
+      code: err.$metadata?.httpStatusCode,
+    });
   }
 });
 
